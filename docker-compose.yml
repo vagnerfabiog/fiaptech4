@@ -1,35 +1,19 @@
+version: '3.8'
+
 services:
-  app:
-    build: 
-      context: .  # O contexto é a pasta raiz (preco_acoes_api)
-      dockerfile: Dockerfile
+  api:
+    build: .
+    container_name: lstm_stock_api
     ports:
-      - "8000:8000"
-    environment:
-      - PROMETHEUS_MULTIPROC_DIR=/tmp
+      - '8000:8000'
+    restart: always
     volumes:
-      - ./app/model_artifacts:/app/model_artifacts
-    depends_on:
-      - prometheus
-      - grafana
+      - .:/app
 
   prometheus:
     image: prom/prometheus:latest
+    container_name: prometheus
     ports:
-      - "9090:9090"
+      - '9090:9090'
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-storage:/var/lib/grafana
-    depends_on:
-      - prometheus
-
-volumes:
-  grafana-storage:
