@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Previsão de Preços de Ações</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Modelo Preditivo de Redes Neurais (LSTM) - Previsão de Preços</h1>
+        <div id="error-message" class="error-message" style="display: none;"></div>
+        <div class="input-section">
+            <h2>Insira os preços históricos (separados por vírgula):</h2>
+            <textarea id="historicalPrices" oninput="updateCounter()" rows="5" placeholder="Ex: 150.5, 152.3, 154.1...(mínimo 60 valores)"></textarea>
+            <p class="required-hint">* Insira pelo menos 60 valores separados por vírgula (<span id="counter">0</span>/60)</p>
+            <div class="options">
+                <label for="steps">Previsões futuras:</label>
+                <input type="number" id="steps" min="1" max="10" value="3">
+                <button onclick="predict()">Prever</button>
+                <button type="button" onclick="generateRandom()">Gerar Aleatório</button>
+            </div>
+        </div>
+
+        <div class="results">
+            <h2>Resultado:</h2>
+            <div id="predictions"></div>
+            <div id="chart"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => errorDiv.style.display = 'none', 5000);
+        }
+        function generateRandom() {
+            const count = 60;
+            const randomValues = [];
+            for (let i = 0; i < count; i++) {
+
+                const valor = (Math.random() * 100).toFixed(2);
+                randomValues.push(valor);
+            }
+
+            const textarea = document.getElementById('historicalPrices');
+            textarea.value = randomValues.join(', ');
+
+            updateCounter();
+         }
+        function updateCounter() {
+            const text = document.getElementById('historicalPrices').value;
+            const count = text.split(',').filter(x => x.trim() !== '').length;
+            document.getElementById('counter').textContent = count;
+            
+            if (count < 60) {
+                document.getElementById('counter').style.color = 'red';
+            } else {
+                document.getElementById('counter').style.color = 'green';
+            }
+        }
+        async function predict() {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.style.display = 'none';
+            
+            const historicalPrices = document.getElementById('historicalPrices').value
+                .split(',')
+                .map(price => parseFloat(price.trim()))
+                .filter(price => !isNaN(price));
+            
+            const steps = parseInt(document.getElementById('steps').value);
+
+            // Validação dos dados
+            if (historicalPrices.length < 60) {
+                showError("⚠️ Você precisa inserir pelo menos 60 valores históricos para calcular a previsão.");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        historical_prices: historicalPrices,
+                        future_steps: steps
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Mostrar previsões
+                document.getElementById('predictions').innerHTML = `
+                    <h3>Previsões:</h3>
+                    <ul>
+                        ${data.predictions.map((p, i) => 
+                            `<li>Previsao ${i+1}: R$ ${p.toFixed(2)}</li>`).join('')}
+                    </ul>
+                `;
+                
+                // Gerar gráfico
+                const historicalTrace = {
+                    x: Array.from({length: historicalPrices.length}, (_, i) => i+1),
+                    y: historicalPrices,
+                    name: 'Histórico',
+                    mode: 'lines+markers',
+                    type: 'scatter'
+                };
+                
+                const predictionTrace = {
+                    x: Array.from({length: data.predictions.length}, 
+                         (_, i) => historicalPrices.length + i + 1),
+                    y: data.predictions,
+                    name: 'Previsão',
+                    mode: 'lines+markers',
+                    type: 'scatter',
+                    line: {dash: 'dot', color: 'red'}
+                };
+                
+                Plotly.newPlot('chart', [historicalTrace, predictionTrace], {
+                    title: 'Histórico e Previsão de Preços',
+                    xaxis: {title: 'Período'},
+                    yaxis: {title: 'Preço (R$)'}
+                });
+                
+            } catch (error) {
+                alert('Erro ao obter previsões: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
