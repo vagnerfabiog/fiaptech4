@@ -1,5 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 from pydantic import BaseModel
 import numpy as np
 from keras.models import load_model
@@ -10,7 +14,6 @@ import time
 from prometheus_fastapi_instrumentator import Instrumentator
 import logging
 from typing import List
-
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +29,7 @@ with open(os.path.join(model_dir, 'metadata.json'), 'r') as f:
 
 look_back = metadata['look_back']
 
-app = FastAPI(title="API para previsão de preços de ações usando LSTM",
+app = FastAPI(title="Stock Price Prediction API",
               description="API para previsão de preços de ações usando LSTM",
               version="1.0")
 
@@ -52,6 +55,14 @@ class PredictionResponse(BaseModel):
 
 # Instrumentação Prometheus
 Instrumentator().instrument(app).expose(app)
+
+# Configuração para servir arquivos estáticos e templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/")
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/health", tags=["Monitoring"])
 async def health_check():
